@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Creates a CMK in KMS and grants access to other accounts
+
+Resources:
+  SSEKMSStripperFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./sse_kms_stripper/
+      Handler: app.lambda_handler
+      Timeout: 300
+      Runtime: python3.7
+      Policies:
+        - Statement:
+            - Effect: "Allow"
+              Action: "s3:*"
+              Resource: "*"
+  S3InvokeLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        Action: 'lambda:InvokeFunction'
+        FunctionName: !GetAtt SSEKMSStripperFunction.Arn
+        Principal: 's3.amazonaws.com'
+        SourceArn: !GetAtt ArtifactBucket.Arn
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: ThisIs
+          Value: AHugeHack
+      NotificationConfiguration:
+          LambdaConfigurations:
+              - Event: 's3:ObjectCreated:*'
+                Function: !GetAtt SSEKMSStripperFunction.Arn
+    DeletionPolicy: Retain
+
+Outputs:
+  ArtifactBucket:
+    Value: !Ref ArtifactBucket
+  StripFunctionArn:
+    Value: !GetAtt SSEKMSStripperFunction.Arn
+
